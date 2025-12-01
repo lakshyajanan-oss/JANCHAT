@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<title>JAN CHat</title>
+<script src="https://cdn.jsdelivr.net/npm/gun/gun.js"></script>
+
+<style>
+/* --- CSS VARIABLES & RESET --- */
+:root {
+  --bg: #050a0e; --panel: #0b1114; --accent: #00ff99; --accent-dim: rgba(0, 255, 153, 0.1);
+  --muted: #7da5a0; --border: rgba(255, 255, 255, 0.08); --font-main: "Courier New", Courier, monospace;
+}
+* { box-sizing: border-box; outline: none; -webkit-tap-highlight-color: transparent; user-select: none; }
+html, body { height: 100%; margin: 0; background: var(--bg); color: var(--muted); font-family: var(--font-main); overflow: hidden; }
+
+/* --- LAYOUT --- */
+.app { display: flex; height: 100%; max-width: 1400px; margin: 0 auto; position: relative; }
+.sidebar { width: 320px; background: var(--panel); display: flex; flex-direction: column; border-right: 1px solid var(--border); z-index: 2; }
+.chat-area { flex: 1; background: var(--bg); display: flex; flex-direction: column; position: relative; z-index: 1; }
+
+/* --- SIDEBAR COMPONENTS --- */
+.header { padding: 15px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+.brand { color: var(--accent); font-weight: bold; font-size: 18px; letter-spacing: -1px; }
+
+.profile-box { padding: 15px; border-bottom: 1px solid var(--border); background: rgba(255,255,255,0.02); }
+.input-dark { background: #000; border: 1px solid var(--border); color: var(--accent); padding: 8px; border-radius: 6px; font-family: inherit; width: 100%; }
+
+.scroll-list { flex: 1; overflow-y: auto; padding: 10px; }
+.section-label { font-size: 10px; text-transform: uppercase; margin: 15px 0 5px 0; opacity: 0.5; letter-spacing: 1px; }
+
+.list-item { padding: 10px; border-radius: 6px; cursor: pointer; margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center; transition: 0.2s; }
+.list-item:hover { background: rgba(255,255,255,0.03); }
+.list-item.active { background: var(--accent-dim); border-left: 2px solid var(--accent); }
+
+/* --- CHAT AREA --- */
+.chat-header { height: 60px; padding: 0 15px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; background: var(--panel); }
+.chat-info h3 { margin: 0; color: #fff; font-size: 16px; }
+.admin-badge { background: var(--accent); color: #000; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold; margin-left: 8px; display:none; }
+.btn-delete { background: #ff3333; color: white; border: none; padding: 6px 12px; border-radius: 4px; font-size: 11px; cursor: pointer; display: none; }
+
+.messages { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 8px; }
+.msg { padding: 8px 12px; border-radius: 8px; background: rgba(255,255,255,0.03); max-width: 85%; align-self: flex-start; word-break: break-word; }
+.msg.self { align-self: flex-end; background: var(--accent-dim); border: 1px solid rgba(0,255,153,0.2); }
+.msg-meta { font-size: 10px; opacity: 0.5; margin-bottom: 4px; display: flex; gap: 6px; align-items: center; }
+
+.compose-box { padding: 10px; background: var(--panel); border-top: 1px solid var(--border); display: flex; gap: 8px; align-items: center; }
+.btn-icon { background: none; border: 1px solid var(--border); color: var(--muted); cursor: pointer; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: 0.2s; }
+.btn-icon:hover { color: var(--accent); border-color: var(--accent); }
+.btn-send { background: var(--accent); color: #000; border: none; padding: 0 20px; height: 40px; border-radius: 20px; font-weight: bold; cursor: pointer; }
+
+/* --- MOBILE RESPONSIVE --- */
+.back-btn { display: none; font-size: 20px; background: none; border: none; color: var(--accent); padding-right: 15px; }
+@media (max-width: 800px) {
+  .sidebar { width: 100%; position: absolute; inset: 0; }
+  .chat-area { width: 100%; position: absolute; inset: 0; transform: translateX(100%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+  .app.view-chat .chat-area { transform: translateX(0); }
+  .app.view-chat .sidebar { pointer-events: none; opacity: 0; }
+  .back-btn { display: block; }
+}
+</style>
+</head>
+<body>
+
+<div class="app" id="app">
+  <aside class="sidebar">
+    <div class="header">
+      <div class="brand">JAN CHat</div>
+      <div style="font-size:10px" id="statusText">...</div>
+    </div>
+
+    <div class="profile-box">
+      <div class="section-label">Your Identity (Ephemeral)</div>
+      <input id="nickInput" class="input-dark" placeholder="Enter Nickname" maxlength="15" />
+      <div style="margin-top:5px; font-size:10px; color:var(--muted)">
+        ID: <span id="myIdDisplay"></span>
+      </div>
+    </div>
+
+    <div class="scroll-list">
+      <div style="display:flex; justify-content:space-between; align-items:center">
+        <div class="section-label">Groups</div>
+        <button id="createGroupBtn" style="background:none; border:none; color:var(--accent); cursor:pointer; font-size:18px">+</button>
+      </div>
+      <input id="newGroupName" class="input-dark" placeholder="New Group Name..." style="margin-bottom:10px; display:none" />
+      
+      <div id="groupList"></div>
+      
+      <div class="section-label">Active Members</div>
+      <div id="membersContainer"></div>
+    </div>
+  </aside>
+
+  <main class="chat-area">
+    <div class="chat-header">
+      <div style="display:flex; align-items:center">
+        <button class="back-btn" id="backBtn">←</button>
+        <div class="chat-info">
+          <h3 id="chatTitle">Lobby</h3>
+          <div style="font-size:11px; opacity:0.6" id="adminNameDisplay">Waiting for connection...</div>
+        </div>
+        <span class="admin-badge" id="adminBadge">YOU ARE ADMIN</span>
+      </div>
+      <button class="btn-delete" id="deleteGroupBtn">DELETE GROUP</button>
+    </div>
+
+    <div id="messages" class="messages">
+      <div style="text-align:center; margin-top:50px; opacity:0.3">
+        Messages are ephemeral.<br>Connect to start.
+      </div>
+    </div>
+
+    <div class="compose-box">
+      <button class="btn-icon" id="mediaBtn" title="Share via Telegram Bot">📎</button>
+      <input id="msgInput" class="input-dark" style="border-radius:20px; padding: 0 15px; height: 40px;" placeholder="Type a message..." autocomplete="off">
+      <button id="sendBtn" class="btn-send">➤</button>
+    </div>
+  </main>
+</div>
+
+<script>
+/* -----------------------------------------------------------
+   CONFIG & SETUP
+----------------------------------------------------------- */
+// CONFIG: Replace with your Telegram Bot Username
+const TELEGRAM_BOT_USER = 'safestbuddyrobot'; 
+
+const PEERS = [location.origin + '/gun'];
+const gun = Gun({ peers: PEERS, localStorage: false }); // Memory only client-side
+
+// IDENTITY: Session based only. New tab = New User.
+let myId = sessionStorage.getItem('jc_sid');
+if (!myId) {
+  myId = 'u-' + Math.random().toString(36).substr(2, 9);
+  sessionStorage.setItem('jc_sid', myId);
+}
+document.getElementById('myIdDisplay').textContent = myId.substr(0,6);
+
+const state = {
+  currentGroup: null,
+  currentGroupName: null,
+  seenKeys: new Set(),
+  members: {}, // { id: { joinedAt, lastSeen, nick } }
+  isAdmin: false
+};
+
+/* -----------------------------------------------------------
+   UI HANDLERS
+----------------------------------------------------------- */
+const els = {
+  app: document.getElementById('app'),
+  msgList: document.getElementById('messages'),
+  grpList: document.getElementById('groupList'),
+  memList: document.getElementById('membersContainer'),
+  title: document.getElementById('chatTitle'),
+  newGrpInput: document.getElementById('newGroupName'),
+  deleteBtn: document.getElementById('deleteGroupBtn'),
+  adminBadge: document.getElementById('adminBadge'),
+  adminName: document.getElementById('adminNameDisplay')
+};
+
+// Toggle Create Group Input
+document.getElementById('createGroupBtn').onclick = () => {
+  els.newGrpInput.style.display = els.newGrpInput.style.display === 'block' ? 'none' : 'block';
+  els.newGrpInput.focus();
+};
+
+els.newGrpInput.addEventListener('keypress', (e) => {
+  if(e.key === 'Enter') {
+    const name = els.newGrpInput.value.trim();
+    if(name) createGroup(name);
+    els.newGrpInput.value = '';
+    els.newGrpInput.style.display = 'none';
+  }
+});
+
+// Mobile Nav
+document.getElementById('backBtn').onclick = () => {
+  leaveCurrentGroup();
+  els.app.classList.remove('view-chat');
+};
+
+// Media Share - Redirects to Telegram
+document.getElementById('mediaBtn').onclick = () => {
+  if(!state.currentGroup) return alert("Join a group first.");
+  const url = `https://t.me/${TELEGRAM_BOT_USER}?start=${state.currentGroup}`;
+  window.open(url, '_blank');
+};
+
+/* -----------------------------------------------------------
+   GROUP LOGIC & ADMIN ROTATION
+----------------------------------------------------------- */
+const groupsRef = gun.get('jc:groups');
+
+function createGroup(name) {
+  const id = 'g-' + Math.random().toString(36).substr(2, 6);
+  // We don't set an "admin" field. Admin is derived dynamically.
+  groupsRef.get(id).put({ id, name, createdAt: Date.now() });
+  joinGroup(id, name);
+}
+
+function renderGroups() {
+  els.grpList.innerHTML = '';
+  groupsRef.map().on((data, id) => {
+    if(!data) return; // Deleted
+    
+    // Prevent dups
+    if(document.getElementById('grp-'+id)) return;
+
+    const div = document.createElement('div');
+    div.className = 'list-item';
+    div.id = 'grp-'+id;
+    div.innerHTML = `<span># ${data.name || id}</span>`;
+    div.onclick = () => joinGroup(id, data.name);
+    els.grpList.appendChild(div);
+  });
+}
+
+function joinGroup(id, name) {
+  if(state.currentGroup === id) return;
+  
+  leaveCurrentGroup(); // Leave previous
+  
+  state.currentGroup = id;
+  state.currentGroupName = name;
+  state.seenKeys.clear();
+  state.members = {};
+  
+  els.title.textContent = name || 'Chat';
+  els.app.classList.add('view-chat'); // Mobile slide
+  els.msgList.innerHTML = ''; // Clear view
+  
+  // 1. Subscribe to Messages
+  gun.get('jc:group:'+id+':msgs').map().on(renderMessage);
+  
+  // 2. Announce Presence (Immediate)
+  updatePresence();
+  
+  // 3. Subscribe to Members for Admin Calculation
+  gun.get('jc:group:'+id+':members').map().on((data, peerId) => {
+    if(!data) { delete state.members[peerId]; return; }
+    state.members[peerId] = data;
+    renderMembers();
+  });
+}
+
+function leaveCurrentGroup() {
+  if(!state.currentGroup) return;
+  
+  // Logic: Am I the last one?
+  const activeCount = getActiveMembers().length;
+  
+  // If I am active and count is 1 (me), delete group on exit
+  if(activeCount <= 1) {
+    // Nuke the group data
+    groupsRef.get(state.currentGroup).put(null);
+    gun.get('jc:group:'+state.currentGroup+':msgs').put(null);
+    gun.get('jc:group:'+state.currentGroup+':members').put(null);
+  } else {
+    // Just remove myself
+    gun.get('jc:group:'+state.currentGroup+':members').get(myId).put(null);
+  }
+  
+  state.currentGroup = null;
+  state.members = {};
+}
+
+/* -----------------------------------------------------------
+   PRESENCE & ADMIN ALGORITHM
+----------------------------------------------------------- */
+// Heartbeat every 2 seconds
+setInterval(() => {
+  if(state.currentGroup) {
+    updatePresence();
+    calculateAdmin();
+  }
+}, 2000);
+
+function updatePresence() {
+  const nick = document.getElementById('nickInput').value || 'Anonymous';
+  // Note: We store joinedAt in session to persist it across reloads if possible, 
+  // but for truly ephemeral, we can just use Date.now() of first load.
+  let joinedAt = sessionStorage.getItem('jc_joined_'+state.currentGroup);
+  if(!joinedAt) {
+    joinedAt = Date.now();
+    sessionStorage.setItem('jc_joined_'+state.currentGroup, joinedAt);
+  }
+  
+  gun.get('jc:group:'+state.currentGroup+':members').get(myId).put({
+    id: myId,
+    nick: nick,
+    lastSeen: Date.now(),
+    joinedAt: parseInt(joinedAt)
+  });
+}
+
+function getActiveMembers() {
+  const now = Date.now();
+  return Object.values(state.members).filter(m => (now - m.lastSeen) < 5000);
+}
+
+function calculateAdmin() {
+  const active = getActiveMembers();
+  if(active.length === 0) return;
+
+  // 
+  // Sort by joinedAt (Oldest first)
+  active.sort((a, b) => a.joinedAt - b.joinedAt);
+
+  const adminUser = active[0];
+  const isAdmin = adminUser.id === myId;
+  
+  state.isAdmin = isAdmin;
+  
+  // UI Updates
+  els.adminName.textContent = `Admin: ${adminUser.nick}`;
+  els.adminBadge.style.display = isAdmin ? 'inline-block' : 'none';
+  els.deleteBtn.style.display = isAdmin ? 'block' : 'none';
+  
+  // Render Member List
+  renderMembers();
+}
+
+function renderMembers() {
+  els.memList.innerHTML = '';
+  const active = getActiveMembers();
+  active.sort((a, b) => a.joinedAt - b.joinedAt); // Sorted by hierarchy
+  
+  active.forEach(m => {
+    const div = document.createElement('div');
+    div.className = 'list-item';
+    const isMe = m.id === myId ? ' (You)' : '';
+    const isAdmin = active[0].id === m.id ? '★ ' : '';
+    div.innerHTML = `<span style="font-size:12px">${isAdmin}${m.nick}${isMe}</span>`;
+    els.memList.appendChild(div);
+  });
+}
+
+/* -----------------------------------------------------------
+   DELETION LOGIC
+----------------------------------------------------------- */
+els.deleteBtn.onclick = () => {
+  if(!state.isAdmin) return;
+  if(confirm('Are you sure? This will delete the group for everyone.')) {
+    const gid = state.currentGroup;
+    groupsRef.get(gid).put(null); // Remove from list
+    gun.get('jc:group:'+gid+':msgs').put(null); // Wipe messages
+    gun.get('jc:group:'+gid+':members').put(null); // Wipe members
+    
+    alert('Group Deleted');
+    location.reload();
+  }
+};
+
+/* -----------------------------------------------------------
+   MESSAGING
+----------------------------------------------------------- */
+function renderMessage(data, id) {
+  if(!data || !data.text) return;
+  if(state.seenKeys.has(id)) return;
+  state.seenKeys.add(id);
+  
+  const div = document.createElement('div');
+  const isMe = data.userId === myId;
+  div.className = `msg ${isMe ? 'self' : ''}`;
+  
+  const time = new Date(data.ts).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+  div.innerHTML = `
+    <div class="msg-meta"><b>${esc(data.nick)}</b> ${time}</div>
+    <div>${esc(data.text)}</div>
+  `;
+  
+  els.msgList.appendChild(div);
+  els.msgList.scrollTop = els.msgList.scrollHeight;
+}
+
+document.getElementById('sendBtn').onclick = sendMessage;
+document.getElementById('msgInput').onkeypress = (e) => { if(e.key==='Enter') sendMessage(); };
+
+function sendMessage() {
+  const txt = document.getElementById('msgInput').value.trim();
+  if(!txt || !state.currentGroup) return;
+  
+  const nick = document.getElementById('nickInput').value || 'Anonymous';
+  
+  gun.get('jc:group:'+state.currentGroup+':msgs').set({
+    userId: myId,
+    nick: nick,
+    text: txt,
+    ts: Date.now()
+  });
+  
+  document.getElementById('msgInput').value = '';
+}
+
+function esc(str) { return str ? str.replace(/</g, "&lt;") : ''; }
+
+// Init
+renderGroups();
+
+// Connection Monitoring
+gun.on('hi', () => document.getElementById('statusText').textContent = 'Online');
+gun.on('bye', () => document.getElementById('statusText').textContent = 'Reconnecting...');
+</script>
+</body>
+</html>
