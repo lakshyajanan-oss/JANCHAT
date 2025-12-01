@@ -9,7 +9,7 @@ const TelegramBot = require('node-telegram-bot-api');
 
 // YOUR CONFIGURATION
 const TOKEN = '8483887845:AAGxmYWQDNbmSqxtBOZUcBPn5rUVrWpl-wk'; // Replace if you revoked it
-const WEB_APP_URL = 'https://erosive-dorothea-unfilling.ngrok-free.dev/';
+const WEB_APP_URL = 'https://janchat.onrender.com/';
 
 // REPLACE THIS with the ID you found in Step 1 (e.g., -100123456789)
 const MEDIA_GROUP_ID = '-1003337042293'; 
@@ -92,4 +92,5 @@ bot.on('message', async (msg) => {
             bot.sendMessage(chatId, `❌ Error: Make sure the bot is an Admin in the target channel.\nRef: ${error.message}`);
         }
     }
+
 });
