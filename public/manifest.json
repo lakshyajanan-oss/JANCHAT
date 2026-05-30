@@ -1,0 +1,22 @@
+{
+  "name": "JANChat",
+  "short_name": "JANChat",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#050a0e",
+  "theme_color": "#00ff99",
+  "orientation": "portrait",
+  "description": "Realtime ephemeral group chat app",
+  "icons": [
+    {
+      "src": "https://janchat.onrender.com/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://janchat.onrender.com/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
