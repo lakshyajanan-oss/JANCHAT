@@ -1,18 +1,23 @@
 {
-  "name": "jan-chat-gun",
-  "version": "1.0.0",
-  "description": "GunDB Relay and Telegram Bot",
+  "name": "janchat",
+  "version": "2.0.0",
+  "description": "JANChat realtime web app with APK build support",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "cap:init": "npx cap init JANChat com.lakshya.janchat",
+    "cap:sync": "npx cap sync android"
   },
   "dependencies": {
+    "@capacitor/android": "^7.0.1",
+    "@capacitor/cli": "^7.0.1",
+    "@capacitor/core": "^7.0.1",
+    "cors": "^2.8.5",
     "express": "^4.18.2",
     "gun": "^0.2020.1239",
-    "node-telegram-bot-api": "^0.61.0",
-    "cors": "^2.8.5"
+    "node-telegram-bot-api": "^0.61.0"
   },
   "engines": {
-    "node": ">=16.0.0"
+    "node": ">=18.0.0"
   }
 }
